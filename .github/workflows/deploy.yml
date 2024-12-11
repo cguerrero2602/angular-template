@@ -1,0 +1,55 @@
+name: Build, Push, and Deploy Angular App
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Angular Project Name'
+        required: true
+      angular_version:
+        description: 'Angular CLI Version (16, 17, 18, or 19)'
+        required: true
+
+jobs:
+  build-push-deploy:
+    runs-on: self-hosted
+
+    steps:
+      # Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # Install Angular CLI with the specified version
+      - name: Install Angular CLI
+        run: npm install -g @angular/cli@${{ github.event.inputs.angular_version }}
+
+      # Generate the new Angular project
+      - name: Generate Angular Project
+        run: |
+          npx @angular/cli@${{ github.event.inputs.angular_version }} new ${{ github.event.inputs.project_name }} --defaults --skip-git
+          mv ${{ github.event.inputs.project_name }}/* .
+          mv ${{ github.event.inputs.project_name }}/.* .
+          rm -rf ${{ github.event.inputs.project_name }}
+
+      # Build Docker image
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Deploy Docker container
+      - name: Deploy to Server
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
+          docker stop ${{ github.event.inputs.project_name }} || true
+          docker rm ${{ github.event.inputs.project_name }} || true
+          docker run -d --name ${{ github.event.inputs.project_name }} -p ${{ vars.PORT }}:80 ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
