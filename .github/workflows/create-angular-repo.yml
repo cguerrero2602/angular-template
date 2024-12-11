@@ -1,0 +1,50 @@
+name: Create Angular Project and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Name of the Angular project'
+        required: true
+      repo_name:
+        description: 'Name of the new repository'
+        required: true
+
+jobs:
+  create-and-setup-repo:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Instalar Angular CLI
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Angular CLI
+        run: npm install -g @angular/cli
+
+      # 2. Crear el proyecto Angular
+      - name: Generate Angular Project
+        run: ng new ${{ inputs.project_name }} --defaults --skip-git
+
+      # 3. Crear un nuevo repositorio en GitHub
+      - name: Create GitHub Repository
+        uses: peter-evans/create-or-update-repository@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ inputs.repo_name }}
+          private: false
+
+      # 4. Subir solo el proyecto Angular y el archivo de despliegue continuo
+      - name: Push Project to New Repo
+        run: |
+          cd ${{ inputs.project_name }}
+          echo "Adding deployment pipeline"
+          cp ../.github/workflows/deploy-angular.yml .github/workflows/deploy-angular.yml
+          git init
+          git branch -M main
+          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
+          git add .
+          git commit -m "Initial commit for ${{ inputs.project_name }}"
+          git push -u origin main
