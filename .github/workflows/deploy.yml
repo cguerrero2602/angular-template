@@ -1,55 +1,98 @@
-name: Build, Push, and Deploy Angular App
+name: Create Angular Project
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual execution of the workflow
     inputs:
       project_name:
-        description: 'Angular Project Name'
+        description: 'Name of the Angular project' # Input for the project name
+        required: true
+      repo_name:
+        description: 'Name of the new GitHub repository' # Input for the repository name
         required: true
       angular_version:
-        description: 'Angular CLI Version (16, 17, 18, or 19)'
+        description: 'Version of Angular (16, 17, etc.)' # Input for Angular version
         required: true
+        default: '17' # Default to Angular version 17
 
 jobs:
-  build-push-deploy:
-    runs-on: self-hosted
+  create-project:
+    runs-on: ubuntu-latest # Workflow runs on an Ubuntu environment
 
     steps:
-      # Checkout repository
-      - name: Checkout code
-        uses: actions/checkout@v3
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3 # Allows access to the repository
 
-      # Set up Node.js
+      # Step 2: Set up Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v3 # Installs Node.js environment
         with:
-          node-version: 18
+          node-version: '18' # Specify Node.js version
 
-      # Install Angular CLI with the specified version
+      # Step 3: Install Angular CLI
       - name: Install Angular CLI
-        run: npm install -g @angular/cli@${{ github.event.inputs.angular_version }}
+        run: npm install -g @angular/cli@${{ inputs.angular_version }} # Install specific Angular CLI version
 
-      # Generate the new Angular project
+      # Step 4: Generate the Angular project
       - name: Generate Angular Project
         run: |
-          npx @angular/cli@${{ github.event.inputs.angular_version }} new ${{ github.event.inputs.project_name }} --defaults --skip-git
-          mv ${{ github.event.inputs.project_name }}/* .
-          mv ${{ github.event.inputs.project_name }}/.* .
-          rm -rf ${{ github.event.inputs.project_name }}
+          # Create the Angular project with default settings
+          ng new ${{ inputs.project_name }} --defaults --skip-git
+          cd ${{ inputs.project_name }}
+          echo "Configuring deployment pipeline..."
+          # Add a basic deployment pipeline for the project
+          cat <<EOF > .github/workflows/deploy.yml
+          name: Deploy Angular Project
 
-      # Build Docker image
-      - name: Build and Push Docker Image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest .
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
+          on:
+            push:
+              branches:
+                - main # Trigger deployment on pushes to the main branch
+
+          jobs:
+            deploy:
+              runs-on: ubuntu-latest
+
+              steps:
+                # Checkout the code
+                - name: Checkout code
+                  uses: actions/checkout@v3
+
+                # Build the Angular project
+                - name: Build Angular Project
+                  run: |
+                    npm ci
+                    npm run build -- --prod
+
+                # Deploy the project to the server
+                - name: Deploy to Server
+                  run: |
+                    echo "Deploying Angular project..."
+                    # Add your deployment logic here
+          EOF
         env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          PROJECT_NAME: ${{ inputs.project_name }} # Environment variable for the project name
 
-      # Deploy Docker container
-      - name: Deploy to Server
+      # Step 5: Initialize Git for the new project
+      - name: Initialize Git
         run: |
-          docker pull ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
-          docker stop ${{ github.event.inputs.project_name }} || true
-          docker rm ${{ github.event.inputs.project_name }} || true
-          docker run -d --name ${{ github.event.inputs.project_name }} -p ${{ vars.PORT }}:80 ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.project_name }}:latest
+          cd ${{ inputs.project_name }}
+          git init # Initialize a new Git repository
+          git add . # Add all files
+          git commit -m "Initial commit for ${{ inputs.project_name }}" # Create the first commit
+
+      # Step 6: Create a new GitHub repository
+      - name: Create GitHub Repository
+        uses: peter-evans/create-or-update-repository@v2 # Action to create a GitHub repository
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} # GitHub token for authentication
+          repository: ${{ inputs.repo_name }} # Name of the new repository
+          private: false # Set to true for private repositories
+
+      # Step 7: Push the Angular project to the new repository
+      - name: Push to GitHub
+        run: |
+          cd ${{ inputs.project_name }}
+          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git # Set the remote repository
+          git branch -M main # Rename branch to 'main'
+          git push -u origin main # Push the code to the repository
