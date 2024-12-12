@@ -87,26 +87,43 @@ jobs:
                     docker run -d --name ${{ vars.CONTAINER_NAME }} -p ${{ vars.PORT }}:80 ${{ secrets.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest
           EOF
 
-      # Initialize Git and push to the new repository
-      - name: Initialize Git
+    # Create GitHub Repository using API
+      - name: Create Repository with API
+        run: |
+          RESPONSE=$(curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/user/repos \
+          -d '{"name":"${{ inputs.repo_name }}","private":true}')
+          echo "$RESPONSE"
+
+          # Verificar si el repositorio fue creado correctamente
+          if echo "$RESPONSE" | grep '"id":'; then
+            echo "Repository created successfully."
+          else
+            echo "Failed to create repository."
+            exit 1
+          fi
+
+      # Configure Git
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+      # Initialize Git and Push to Repository
+      - name: Push Angular Project to Repository
         run: |
           cd ${{ inputs.project_name }}
           git init
           git add .
           git commit -m "Initial commit for ${{ inputs.project_name }}"
 
-      # Create repository in GitHub
-      - name: Create Repository with API
-        run: |
-          curl -X POST \
-          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/user/repos \
-          -d '{"name":"${{ inputs.repo_name }}","private":true}'
+          # Configurar remoto
+          git remote remove origin || true
 
-      # Push code to the new repository
-      - name: Push to GitHub
-        run: |
+          # Agregar el remoto con autenticación
           git remote add origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
+          # Subir los archivos
           git branch -M main
           git push -u origin main
