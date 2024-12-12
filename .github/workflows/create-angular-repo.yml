@@ -77,8 +77,10 @@ jobs:
           git commit -m "Initial commit for ${{ inputs.project_name }}"
 
           # Configurar remoto
-          git remote add origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
+          git remote remove origin || true
 
+          # Agregar el remoto con autenticación
+          git remote add origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
           # Subir los archivos
           git branch -M main
           git push -u origin main
