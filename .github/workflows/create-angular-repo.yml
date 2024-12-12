@@ -53,9 +53,9 @@ jobs:
       - name: Create GitHub Repository
         uses: peter-evans/create-or-update-repository@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           repository: ${{ inputs.repo_name }}
-          private: false
+          private: true
 
       # 6. Subir el proyecto al repositorio
       - name: Push to GitHub
