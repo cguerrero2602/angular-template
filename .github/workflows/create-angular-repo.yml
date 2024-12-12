@@ -10,11 +10,6 @@ on:
         description: 'Name of the new repository'
         required: true
 
-permissions: # Ajuste de permisos
-  contents: write
-  packages: write
-  actions: read
-
 jobs:
   create-project:
     runs-on: self-hosted # Usa el runner auto-hospedado
