@@ -32,12 +32,18 @@ jobs:
       # Create Angular project
       - name: Generate Angular Project
         run: |
-          mkdir temp-angular-project
-          cd temp-angular-project
+          # Cambiar al directorio temporal del sistema
+          cd /tmp
+
+          # Crear el proyecto Angular
           npx -p @angular/cli ng new ${{ inputs.project_name }} --defaults --skip-git
-          mv ${{ inputs.project_name }} ../${{ inputs.project_name }}
-          cd ..
-          rm -rf temp-angular-project
+
+          # Mover el proyecto generado al directorio de trabajo del runner
+          mv ${{ inputs.project_name }} $GITHUB_WORKSPACE/${{ inputs.project_name }}
+
+          # Cambiar de vuelta al directorio del flujo de trabajo
+          cd $GITHUB_WORKSPACE
+
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
 
