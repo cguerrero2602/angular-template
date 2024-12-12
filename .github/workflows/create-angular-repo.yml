@@ -29,45 +29,44 @@ jobs:
       - name: Install Angular CLI
         run: npm install -g @angular/cli
 
-      # Create Angular project
+      # Generate Angular Project
       - name: Generate Angular Project
         run: |
-          # Cambiar al directorio temporal del sistema
           cd /tmp
-
-          # Crear el proyecto Angular
           npx -p @angular/cli ng new ${{ inputs.project_name }} --defaults --skip-git
-
-          # Mover el proyecto generado al directorio de trabajo del runner
           mv ${{ inputs.project_name }} $GITHUB_WORKSPACE/${{ inputs.project_name }}
-
-          # Cambiar de vuelta al directorio del flujo de trabajo
           cd $GITHUB_WORKSPACE
-
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
 
+      # List files (debugging)
+      - name: List files in project directory
+        run: ls -la $GITHUB_WORKSPACE/${{ inputs.project_name }}
 
       # Create GitHub Repository using API
       - name: Create Repository with API
         run: |
           curl -X POST \
-          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN  }}" \
+          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/user/repos \
-          -d '{"name":"${{ inputs.repo_name }}","private":false}'
+          -d '{"name":"${{ inputs.repo_name }}","private":true}'
         env:
           REPO_NAME: ${{ inputs.repo_name }}
 
+      # Configure Git
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
 
-        # Inicializar Git en el proyecto Angular
-      - name: Initialize Git
+      # Push to GitHub Repository
+      - name: Push to GitHub Repository
         run: |
-          cd ${{ inputs.project_name }}
+          cd $GITHUB_WORKSPACE/${{ inputs.project_name }}
           git init
           git add .
           git commit -m "Initial commit for ${{ inputs.project_name }}"
+          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
+          git branch -M main
+          git push -u origin main
