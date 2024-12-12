@@ -12,50 +12,50 @@ on:
 
 jobs:
   create-project:
-    runs-on: self-hosted # Usa el runner auto-hospedado
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. Configurar el entorno
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      # 2. Instalar Angular CLI
+      # Install Angular CLI
       - name: Install Angular CLI
         run: npm install -g @angular/cli
 
-      # 3. Crear el proyecto Angular
+      # Create Angular project
       - name: Generate Angular Project
         run: |
           ng new ${{ inputs.project_name }} --defaults --skip-git
           cd ${{ inputs.project_name }}
-          echo "Setting up deployment configuration..."
-          echo -e "version: 1\nsteps:\n- name: Deploy" > deployment-pipeline.yml
+          echo "Adding deployment pipeline..."
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
 
-      # 4. Inicializar Git
-      - name: Initialize Git
+      # Create GitHub Repository using API
+      - name: Create Repository with API
+        run: |
+          curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/user/repos \
+          -d '{"name":"${{ inputs.repo_name }}","private":true}'
+        env:
+          REPO_NAME: ${{ inputs.repo_name }}
+
+      # Initialize Git and push to the new repository
+      - name: Initialize Git and Push
         run: |
           cd ${{ inputs.project_name }}
           git init
+          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
           git add .
           git commit -m "Initial commit for ${{ inputs.project_name }}"
-
-      # 5. Crear el repositorio en GitHub
-      - name: Create GitHub Repository
-        uses: peter-evans/create-or-update-repository@v2
-        with:
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          repository: ${{ inputs.repo_name }}
-          private: true
-
-      # 6. Subir el proyecto al repositorio
-      - name: Push to GitHub
-        run: |
-          cd ${{ inputs.project_name }}
-          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
           git branch -M main
           git push -u origin main
