@@ -1,7 +1,7 @@
-name: Create Angular Project and Deploy
+name: Create Angular Project
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Permite iniciar el flujo manualmente
     inputs:
       project_name:
         description: 'Name of the Angular project'
@@ -11,24 +11,40 @@ on:
         required: true
 
 jobs:
-  create-and-setup-repo:
-    runs-on: ubuntu-latest
+  create-project:
+    runs-on: self-hosted # Usa el runner auto-hospedado
 
     steps:
-      # 1. Instalar Angular CLI
+      # 1. Configurar el entorno
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '18'
 
+      # 2. Instalar Angular CLI
       - name: Install Angular CLI
         run: npm install -g @angular/cli
 
-      # 2. Crear el proyecto Angular
+      # 3. Crear el proyecto Angular
       - name: Generate Angular Project
-        run: ng new ${{ inputs.project_name }} --defaults --skip-git
+        run: |
+          ng new ${{ inputs.project_name }} --defaults --skip-git
+          cd ${{ inputs.project_name }}
+          echo "Setting up deployment configuration..."
+          echo -e "version: 1\nsteps:\n- name: Deploy" > deployment-pipeline.yml
 
-      # 3. Crear un nuevo repositorio en GitHub
+      # 4. Inicializar Git
+      - name: Initialize Git
+        run: |
+          cd ${{ inputs.project_name }}
+          git init
+          git add .
+          git commit -m "Initial commit for ${{ inputs.project_name }}"
+
+      # 5. Crear el repositorio en GitHub
       - name: Create GitHub Repository
         uses: peter-evans/create-or-update-repository@v2
         with:
@@ -36,15 +52,10 @@ jobs:
           repository: ${{ inputs.repo_name }}
           private: false
 
-      # 4. Subir solo el proyecto Angular y el archivo de despliegue continuo
-      - name: Push Project to New Repo
+      # 6. Subir el proyecto al repositorio
+      - name: Push to GitHub
         run: |
           cd ${{ inputs.project_name }}
-          echo "Adding deployment pipeline"
-          cp ../.github/workflows/deploy-angular.yml .github/workflows/deploy-angular.yml
-          git init
-          git branch -M main
           git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
-          git add .
-          git commit -m "Initial commit for ${{ inputs.project_name }}"
+          git branch -M main
           git push -u origin main
