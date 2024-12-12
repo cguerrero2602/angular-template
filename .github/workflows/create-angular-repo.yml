@@ -32,11 +32,15 @@ jobs:
       # Create Angular project
       - name: Generate Angular Project
         run: |
-          ng new ${{ inputs.project_name }} --defaults --skip-git
-          cd ${{ inputs.project_name }}
-          echo "Adding deployment pipeline..."
+          mkdir temp-angular-project
+          cd temp-angular-project
+          npx -p @angular/cli ng new ${{ inputs.project_name }} --defaults --skip-git
+          mv ${{ inputs.project_name }} ../${{ inputs.project_name }}
+          cd ..
+          rm -rf temp-angular-project
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
+
 
       # Create GitHub Repository using API
       - name: Create Repository with API
