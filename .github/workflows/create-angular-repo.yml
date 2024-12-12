@@ -32,55 +32,81 @@ jobs:
       # Create Angular project
       - name: Generate Angular Project
         run: |
-          # Cambiar al directorio temporal
           cd /tmp
-
-          # Crear el proyecto Angular
           npx -p @angular/cli ng new ${{ inputs.project_name }} --defaults --skip-git
-
-          # Mover el proyecto generado al directorio de trabajo del runner
           mv ${{ inputs.project_name }} $GITHUB_WORKSPACE/${{ inputs.project_name }}
-
-          # Volver al directorio del flujo de trabajo
           cd $GITHUB_WORKSPACE
 
-      # Create GitHub Repository using API
-      - name: Create Repository with API
+      # Add deploy-angular.yml for continuous deployment
+      - name: Configure Continuous Deployment
         run: |
-          RESPONSE=$(curl -X POST \
-          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/user/repos \
-          -d '{"name":"${{ inputs.repo_name }}","private":true}')
-          echo "$RESPONSE"
+          mkdir -p ${{ inputs.project_name }}/.github/workflows
+          cat <<EOF > ${{ inputs.project_name }}/.github/workflows/deploy-angular.yml
+          name: Build, Push and Deploy Angular App
 
-          # Verificar si el repositorio fue creado correctamente
-          if echo "$RESPONSE" | grep '"id":'; then
-            echo "Repository created successfully."
-          else
-            echo "Failed to create repository."
-            exit 1
-          fi
+          on:
+            push:
+              branches:
+                - main
 
-      # Configure Git
-      - name: Configure Git
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
+          jobs:
+            build-push-deploy:
+              runs-on: self-hosted # Usa tu runner auto-hospedado
 
-      # Initialize Git and Push to Repository
-      - name: Push Angular Project to Repository
+              steps:
+                - name: Checkout code
+                  uses: actions/checkout@v3
+
+                - name: Set up Node.js
+                  uses: actions/setup-node@v3
+                  with:
+                    node-version: '18'
+
+                - name: Install dependencies
+                  run: npm install
+
+                - name: Build Angular App
+                  run: npm run build --prod
+
+                - name: Log in to Docker Hub
+                  uses: docker/login-action@v2
+                  with:
+                    username: ${{ secrets.DOCKER_USERNAME }}
+                    password: ${{ secrets.DOCKER_PASSWORD }}
+
+                - name: Build and Push Docker Image
+                  run: |
+                    docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest .
+                    docker push ${{ secrets.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest
+
+                - name: Deploy Angular App
+                  run: |
+                    docker pull ${{ secrets.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest
+                    docker stop ${{ vars.CONTAINER_NAME }} || true
+                    docker rm ${{ vars.CONTAINER_NAME }} || true
+                    docker run -d --name ${{ vars.CONTAINER_NAME }} -p ${{ vars.PORT }}:80 ${{ secrets.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest
+          EOF
+
+      # Initialize Git and push to the new repository
+      - name: Initialize Git
         run: |
           cd ${{ inputs.project_name }}
           git init
           git add .
           git commit -m "Initial commit for ${{ inputs.project_name }}"
 
-          # Configurar remoto
-          git remote remove origin || true
+      # Create repository in GitHub
+      - name: Create Repository with API
+        run: |
+          curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/user/repos \
+          -d '{"name":"${{ inputs.repo_name }}","private":true}'
 
-          # Agregar el remoto con autenticación
+      # Push code to the new repository
+      - name: Push to GitHub
+        run: |
           git remote add origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
-          # Subir los archivos
           git branch -M main
           git push -u origin main
