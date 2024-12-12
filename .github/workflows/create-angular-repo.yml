@@ -59,13 +59,15 @@ jobs:
         env:
           REPO_NAME: ${{ inputs.repo_name }}
 
-      # Initialize Git and push to the new repository
-      - name: Initialize Git and Push
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+        # Inicializar Git en el proyecto Angular
+      - name: Initialize Git
         run: |
           cd ${{ inputs.project_name }}
           git init
-          git remote add origin https://github.com/${{ github.repository_owner }}/${{ inputs.repo_name }}.git
           git add .
           git commit -m "Initial commit for ${{ inputs.project_name }}"
-          git branch -M main
-          git push -u origin main
